@@ -132,6 +132,16 @@ function initCloudSync() {
                     hasChanged = true;
                 } else if (collections.includes(docId)) {
                     if (Array.isArray(data.items)) {
+                        // If cloud contains old demo items, overwrite cloud with clean zero data
+                        const hasDemoItems = data.items.some(item => 
+                            item && (item.id === 'CL-1001' || item.id === 'FR-1001' || item.id === 'ART-2001' || item.id === 'INT-3001' || item.id === 'PROD-2026-001')
+                        );
+                        if (hasDemoItems) {
+                            console.log(`Données de démo détectées dans la collection cloud ${docId}, réinitialisation propre...`);
+                            syncToCloud();
+                            return;
+                        }
+
                         const localStr = JSON.stringify(db[docId] || []);
                         const remoteStr = JSON.stringify(data.items);
                         if (localStr !== remoteStr) {
@@ -182,8 +192,8 @@ let dashboardCharts = {};
 // Dynamic Lists for Select Dropdowns
 let families = JSON.parse(localStorage.getItem('crm_families_v2')) || ["Aliments & Nutrition", "Santé Animale", "Matériel d'Élevage", "Consommables & Hygiène"];
 let subfamilies = JSON.parse(localStorage.getItem('crm_subfamilies_v2')) || ["Aliment Volaille", "Aliment Porc", "Produits Finis", "Vaccins & Vitamines"];
-let drivers = JSON.parse(localStorage.getItem('crm_drivers_v2')) || ["Ayden Delivery", "Soro Moussa", "Koffi Jean"];
-let enclosures = JSON.parse(localStorage.getItem('crm_enclosures_v2')) || ["Bâtiment A (Poulets)", "Bâtiment B (Pondeuses)", "Porcherie 1", "Maternité Porcine"];
+let drivers = JSON.parse(localStorage.getItem('crm_drivers_v2')) || ["Ayden Delivery"];
+let enclosures = JSON.parse(localStorage.getItem('crm_enclosures_v2')) || ["Bâtiment A", "Bâtiment B"];
 let intrantFamilies = JSON.parse(localStorage.getItem('crm_intrant_families_v2')) || ["Matières Premières (Aliment)", "Santé Animale", "Conditionnement", "Hygiène"];
 let intrantSubfamilies = JSON.parse(localStorage.getItem('crm_intrant_subfamilies_v2')) || ["Céréales & Tourteaux", "Vaccins & Vitamines", "Sacs & Cartons", "Désinfectants"];
 
@@ -203,187 +213,57 @@ let db = {
 let paymentChart = null;
 let stockChart = null;
 
-// --- DEMO DATA GENERATOR ---
-// Populates the database if it is empty, making the UI look premium and active immediately
+// --- INITIAL DATA RESET & SETUP ---
 function initDemoData() {
-    // Migration: Ensure all intrants have a supplierStocks object
-    if (db.INTRANT && db.INTRANT.length > 0) {
-        let migrated = false;
-        db.INTRANT.forEach(item => {
-            if (!item.supplierStocks) {
-                item.supplierStocks = {};
-                if (item.stock > 0 && db.FOURNISSEUR && db.FOURNISSEUR.length > 0) {
-                    const targetSupplier = db.FOURNISSEUR.find(f => f.id === 'FR-1001') || db.FOURNISSEUR.find(f => f.id === 'FR-1002') || db.FOURNISSEUR[0];
-                    if (targetSupplier) {
-                        item.supplierStocks[targetSupplier.id] = item.stock;
-                    }
-                }
-                migrated = true;
-            }
-        });
-        if (migrated) {
-            saveData();
-        }
+    const isResetDone = localStorage.getItem('ayden_clean_zero_v2') === 'done';
+    if (!isResetDone) {
+        db.CLIENT = [];
+        db.FOURNISSEUR = [];
+        db.ARTICLE = [];
+        db.INTRANT = [];
+        db.PRODUCTION = [];
+        db.VENTE = [];
+        db.ACHAT = [];
+        db.USER = [
+            { id: "ICONIC", name: "Administrateur", email: "admin@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-10-15" }
+        ];
+        drivers = ["Ayden Delivery"];
+        enclosures = ["Bâtiment A", "Bâtiment B"];
+        localStorage.setItem('ayden_clean_zero_v2', 'done');
+        saveData();
+        return;
     }
 
-    let empty = Object.values(db).every(arr => arr.length === 0);
-    
-    // Handle separate USER initialization
+    // Ensure default administrator exists for security validation
     if (!db.USER || db.USER.length === 0) {
         db.USER = [
-            { id: "ICONIC", name: "Dr. Ayden", email: "ayden@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-05-01" },
-            { id: "USR-1002", name: "Soro Moussa", email: "soro@ayden.ci", phone: "0505050505", role: "Livreur", status: "Actif", date: "2026-05-15" },
-            { id: "USR-1003", name: "Koffi Jean", email: "koffi@ayden.ci", phone: "0101010101", role: "Commercial", status: "Actif", date: "2026-06-01" }
+            { id: "ICONIC", name: "Administrateur", email: "admin@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-10-15" }
         ];
         saveData();
     }
-    
-    if (!empty) return;
+}
 
-    db.CLIENT = [
-        { id: "CL-1001", name: "Coopérative Avicole d'Akoupé", phone1: "0759803724", phone2: "0576233780", address: "Akoupé, Quartier Commerce", status: "Abonné", limit: 1500000, email: "contact@coopavi.ci", date: "2026-05-10" },
-        { id: "CL-1002", name: "Marché de Gros d'Adzopé", phone1: "0140293847", phone2: "", address: "Adzopé, Face Gare Routière", status: "Abonné", limit: 3000000, email: "info@marcheadzope.org", date: "2026-05-12" },
-        { id: "CL-1003", name: "Ferme Agro-Pastorale Koné", phone1: "0788293010", phone2: "0709281313", address: "Akoupé, Résidentiel", status: "Occasionnel", limit: 0, email: "kone.m@fermekone.ci", date: "2026-06-01" },
-        { id: "CL-1004", name: "Boucherie Moderne d'Akoupé", phone1: "0544839201", phone2: "", address: "Akoupé, Route de Kotobi", status: "Abonné", limit: 800000, email: "boucherie.paix@gmail.com", date: "2026-06-05" }
+// Reset function that can be called anytime
+function resetDatabaseToZero() {
+    if (typeof confirm === 'function' && !confirm("Êtes-vous sûr de vouloir réinitialiser l'application à zéro ? Cette action supprimera toutes les données.")) {
+        return;
+    }
+    db.CLIENT = [];
+    db.FOURNISSEUR = [];
+    db.ARTICLE = [];
+    db.INTRANT = [];
+    db.PRODUCTION = [];
+    db.VENTE = [];
+    db.ACHAT = [];
+    db.USER = [
+        { id: "ICONIC", name: "Administrateur", email: "admin@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-10-15" }
     ];
-
-    db.FOURNISSEUR = [
-        { id: "FR-1001", name: "Provenderie Ivoirienne", phone1: "2722409080", phone2: "0707889900", address: "Abidjan, Zone 3", status: "Occasionnel", limit: 0, email: "commercial@provenderie.ci", date: "2026-04-15" },
-        { id: "FR-1002", name: "VetoPharma Côte d'Ivoire", phone1: "2721345678", phone2: "", address: "Abidjan, Koumassi", status: "Régulier", limit: 0, email: "contact@vetopharma.ci", date: "2026-04-20" }
-    ];
-
-    db.ARTICLE = [
-        { id: "ART-2001", name: "Poulet de Chair (vif - Moyen)", family: "Produits d'Élevage", subfamily: "Produits Finis", price: 1200, stock: 450, photo: "", date: "2026-05-01" },
-        { id: "ART-2002", name: "Concentré Volaille 5% (Kg)", family: "Aliments & Nutrition", subfamily: "Aliment Volaille", price: 2800, stock: 120, photo: "", date: "2026-05-01" },
-        { id: "ART-2003", name: "Couveuse Électronique 60 Œufs", family: "Matériel d'Élevage", subfamily: "Produits Finis", price: 24500, stock: 25, photo: "", date: "2026-05-02" },
-        { id: "ART-2004", name: "Seringue Vaccinale Automatique", family: "Consommables & Hygiène", subfamily: "Vaccins & Vitamines", price: 4500, stock: 80, photo: "", date: "2026-05-03" },
-        { id: "ART-2005", name: "Abreuvoir Siphoïde 10L", family: "Matériel d'Élevage", subfamily: "Produits Finis", price: 3500, stock: 0, photo: "", date: "2026-05-15" }, // Out of stock
-        { id: "ART-2006", name: "Désinfectant Élevage Sanitaire 5L", family: "Consommables & Hygiène", subfamily: "Vaccins & Vitamines", price: 8500, stock: 45, photo: "", date: "2026-05-20" }
-    ];
-
-    db.INTRANT = [
-        { id: "INT-3001", name: "Maïs concassé (Kg)", family: "Matières Premières (Aliment)", subfamily: "Céréales & Tourteaux", price: 250, stock: 1000, supplierStocks: { "FR-1001": 1000 }, photo: "", date: "2026-05-01" },
-        { id: "INT-3002", name: "Tourteau de Soja (Kg)", family: "Matières Premières (Aliment)", subfamily: "Céréales & Tourteaux", price: 450, stock: 500, supplierStocks: { "FR-1001": 500 }, photo: "", date: "2026-05-01" },
-        { id: "INT-3003", name: "Sacs de Conditionnement Vides 25kg", family: "Conditionnement", subfamily: "Sacs & Cartons", price: 150, stock: 2000, supplierStocks: { "FR-1002": 2000 }, photo: "", date: "2026-05-02" },
-        { id: "INT-3004", name: "Vaccin Newcastle (1000 Doses)", family: "Santé Animale", subfamily: "Vaccins & Vitamines", price: 8500, stock: 15, supplierStocks: { "FR-1002": 15 }, photo: "", date: "2026-05-03" }
-    ];
-
-    db.PRODUCTION = [
-        { 
-            id: "PROD-2026-001", 
-            date: "2026-06-10", 
-            manager: "Dr. Ayden", 
-            enclosure: "Bâtiment A (Poulets)", 
-            status: "Terminé", 
-            items: [{ id: "ART-2001", name: "Poulet de Chair (vif - Moyen)", qty: 200 }, { id: "ART-2006", name: "Désinfectant Élevage Sanitaire 5L", qty: 25 }],
-            expenses: [
-                { intrantId: "INT-3001", intrantName: "Maïs concassé (Kg)", qty: 10, amount: 2500, supplierId: "FR-1001", supplierName: "Provenderie Ivoirienne" },
-                { intrantId: "INT-3003", intrantName: "Sacs de Conditionnement Vides 25kg", qty: 200, amount: 30000, supplierId: "FR-1002", supplierName: "VetoPharma Côte d'Ivoire" }
-            ]
-        }
-    ];
-
-    db.VENTE = [
-        {
-            id: "VTE-1718625600000",
-            num: "F-1001",
-            docType: "FACTURE",
-            creationDate: "10/06/2026",
-            date: "2026-06-12",
-            clientId: "CL-1001",
-            clientName: "Coopérative Avicole d'Akoupé",
-            clientStatus: "Abonné",
-            brutHT: 290000,
-            remiseTotal: 10000,
-            netHT: 280000,
-            tvaAmount: 50400,
-            ttc: 330400,
-            reste: 130400,
-            mode: "Mobile Money",
-            tvaEnabled: true,
-            items: [
-                { id: "ART-2001", name: "Poulet de Chair (vif - Moyen)", qty: 50, price: 1200, rem: 0 },
-                { id: "ART-2003", name: "Couveuse Électronique 60 Œufs", qty: 10, price: 24500, rem: 4 }
-            ],
-            payments: [
-                { num: "R-0001", date: "11/06/2026", amount: 200000, mode: "Mobile Money", proof: "TXN-MM-984209" }
-            ],
-            deliveries: [
-                { driver: "Soro Moussa", date: "2026-06-12", items: [{ id: "ART-2001", qty: 50 }, { id: "ART-2003", qty: 10 }] }
-            ]
-        },
-        {
-            id: "VTE-1718625700000",
-            num: "D-1001",
-            docType: "DEVIS",
-            creationDate: "14/06/2026",
-            date: "2026-06-20",
-            clientId: "CL-1003",
-            clientName: "Ferme Agro-Pastorale Koné",
-            clientStatus: "Occasionnel",
-            brutHT: 74000,
-            remiseTotal: 0,
-            netHT: 74000,
-            tvaAmount: 0,
-            ttc: 74000,
-            reste: 74000,
-            mode: "Cash",
-            tvaEnabled: false,
-            items: [
-                { id: "ART-2002", name: "Concentré Volaille 5% (Kg)", qty: 20, price: 2800, rem: 0 },
-                { id: "ART-2004", name: "Seringue Vaccinale Automatique", qty: 4, price: 4500, rem: 0 }
-            ],
-            payments: [],
-            deliveries: []
-        }
-    ];
-
-    db.ACHAT = [
-        {
-            id: "ACH-1718625600000",
-            num: "BC-1001",
-            docType: "BON_COMMANDE",
-            creationDate: "10/06/2026",
-            date: "2026-06-19",
-            supplierId: "FR-1001",
-            supplierName: "Provenderie Ivoirienne",
-            brutHT: 120000,
-            remiseTotal: 0,
-            netHT: 120000,
-            tvaAmount: 21600,
-            ttc: 141600,
-            reste: 141600,
-            mode: "Crédit",
-            tvaEnabled: true,
-            items: [
-                { type: "INTRANT", id: "INT-3001", name: "Maïs concassé (Kg)", qty: 24, price: 5000, rem: 0 }
-            ],
-            payments: []
-        },
-        {
-            id: "ACH-1718625700000",
-            num: "DA-1001",
-            docType: "DEVIS_ACHAT",
-            creationDate: "14/06/2026",
-            date: "2026-06-21",
-            supplierId: "FR-1002",
-            supplierName: "VetoPharma Côte d'Ivoire",
-            brutHT: 45000,
-            remiseTotal: 0,
-            netHT: 45000,
-            tvaAmount: 0,
-            ttc: 45000,
-            reste: 0,
-            mode: "Cash",
-            tvaEnabled: false,
-            items: [
-                { type: "ARTICLE", id: "ART-2004", name: "Seringue Vaccinale Automatique", qty: 10, price: 4500, rem: 0 }
-            ],
-            payments: []
-        }
-    ];
-
+    drivers = ["Ayden Delivery"];
+    enclosures = ["Bâtiment A", "Bâtiment B"];
     saveData();
+    if (typeof syncToCloud === 'function') syncToCloud();
+    if (typeof render === 'function') render();
+    if (typeof showToast === 'function') showToast("Application remise à zéro avec succès !");
 }
 
 // --- DATABASE UTILITIES ---
