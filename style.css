@@ -1766,3 +1766,13 @@ input[type="password"] {
     filter: brightness(1.08) !important;
     box-shadow: 0 4px 10px rgba(219, 39, 119, 0.25) !important;
 }
+
+/* Cloud sync spinner */
+@keyframes spinIcon {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.spin-icon {
+    animation: spinIcon 1s linear infinite;
+    display: inline-block;
+}

@@ -1,6 +1,175 @@
 // --- CONFIGURATION & SECURITY ---
 const ADMIN_CODE = "ICONIC";
 
+// --- FIREBASE CLOUD CONFIGURATION & SYNC ---
+const firebaseConfig = {
+    apiKey: "AIzaSyAsH1oIjWOWQpkUZF-YbdCnlmluR6BYPso",
+    authDomain: "ayden-crm.firebaseapp.com",
+    projectId: "ayden-crm",
+    storageBucket: "ayden-crm.firebasestorage.app",
+    messagingSenderId: "80076746545",
+    appId: "1:80076746545:web:731163e6b05a0215134a10"
+};
+
+let firestoreDb = null;
+let cloudSyncTimeout = null;
+
+if (typeof firebase !== 'undefined' && firebase.initializeApp) {
+    try {
+        if (!firebase.apps || !firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        firestoreDb = firebase.firestore();
+    } catch (e) {
+        console.warn("Firebase initialization warning:", e);
+    }
+}
+
+function updateCloudIndicator(status, label) {
+    if (typeof document === 'undefined') return;
+    const badge = document.getElementById('cloud-sync-badge');
+    const text = document.getElementById('cloud-sync-text');
+    if (!badge || !text) return;
+    
+    if (status === 'synced') {
+        badge.style.background = 'rgba(16, 185, 129, 0.12)';
+        badge.style.color = '#10b981';
+        badge.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+        badge.innerHTML = `<i data-lucide="cloud" style="width:13px; height:13px;"></i><span id="cloud-sync-text">${label || 'Cloud Synchronisé'}</span>`;
+    } else if (status === 'syncing') {
+        badge.style.background = 'rgba(59, 130, 246, 0.12)';
+        badge.style.color = '#3b82f6';
+        badge.style.borderColor = 'rgba(59, 130, 246, 0.25)';
+        badge.innerHTML = `<i data-lucide="refresh-cw" class="spin-icon" style="width:13px; height:13px;"></i><span id="cloud-sync-text">${label || 'Synchronisation...'}</span>`;
+    } else if (status === 'offline') {
+        badge.style.background = 'rgba(245, 158, 11, 0.12)';
+        badge.style.color = '#f59e0b';
+        badge.style.borderColor = 'rgba(245, 158, 11, 0.25)';
+        badge.innerHTML = `<i data-lucide="cloud-off" style="width:13px; height:13px;"></i><span id="cloud-sync-text">${label || 'Mode Local (Cache)'}</span>`;
+    } else {
+        badge.style.background = 'rgba(100, 116, 139, 0.12)';
+        badge.style.color = '#64748b';
+        badge.style.borderColor = 'rgba(100, 116, 139, 0.25)';
+        badge.innerHTML = `<i data-lucide="cloud" style="width:13px; height:13px;"></i><span id="cloud-sync-text">${label || 'Connexion Cloud...'}</span>`;
+    }
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons();
+    }
+}
+
+function syncToCloud() {
+    if (!firestoreDb) return;
+    if (cloudSyncTimeout) clearTimeout(cloudSyncTimeout);
+    
+    cloudSyncTimeout = setTimeout(() => {
+        updateCloudIndicator('syncing');
+        try {
+            const batch = firestoreDb.batch();
+            const collections = ['CLIENT', 'FOURNISSEUR', 'ARTICLE', 'INTRANT', 'PRODUCTION', 'VENTE', 'ACHAT', 'USER'];
+            collections.forEach(col => {
+                const docRef = firestoreDb.collection('ayden_crm').doc(col);
+                batch.set(docRef, { 
+                    items: db[col] || [], 
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp() 
+                });
+            });
+            batch.set(firestoreDb.collection('ayden_crm').doc('CONFIG'), {
+                families: families || [],
+                subfamilies: subfamilies || [],
+                drivers: drivers || [],
+                enclosures: enclosures || [],
+                intrantFamilies: intrantFamilies || [],
+                intrantSubfamilies: intrantSubfamilies || [],
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            batch.commit()
+                .then(() => {
+                    updateCloudIndicator('synced');
+                })
+                .catch(err => {
+                    console.warn("Erreur sauvegarde Cloud:", err);
+                    updateCloudIndicator('offline', 'Mode Local (Vérifier Firestore)');
+                });
+        } catch (err) {
+            console.warn("Exception synchronisation Cloud:", err);
+            updateCloudIndicator('offline');
+        }
+    }, 350);
+}
+
+function initCloudSync() {
+    if (!firestoreDb) {
+        updateCloudIndicator('offline', 'Mode Local (Offline)');
+        return;
+    }
+    updateCloudIndicator('connecting');
+    
+    try {
+        const collections = ['CLIENT', 'FOURNISSEUR', 'ARTICLE', 'INTRANT', 'PRODUCTION', 'VENTE', 'ACHAT', 'USER'];
+        let isFirstSnapshot = true;
+        
+        firestoreDb.collection('ayden_crm').onSnapshot(snapshot => {
+            if (snapshot.empty) {
+                console.log("Premier démarrage sur Firebase : Envoi des données initiales vers le Cloud...");
+                syncToCloud();
+                return;
+            }
+            
+            let hasChanged = false;
+            snapshot.docChanges().forEach(change => {
+                const docId = change.doc.id;
+                const data = change.doc.data();
+                if (!data) return;
+                
+                if (docId === 'CONFIG') {
+                    if (data.families) { families = data.families; localStorage.setItem('crm_families_v2', JSON.stringify(families)); }
+                    if (data.subfamilies) { subfamilies = data.subfamilies; localStorage.setItem('crm_subfamilies_v2', JSON.stringify(subfamilies)); }
+                    if (data.drivers) { drivers = data.drivers; localStorage.setItem('crm_drivers_v2', JSON.stringify(drivers)); }
+                    if (data.enclosures) { enclosures = data.enclosures; localStorage.setItem('crm_enclosures_v2', JSON.stringify(enclosures)); }
+                    if (data.intrantFamilies) { intrantFamilies = data.intrantFamilies; localStorage.setItem('crm_intrant_families_v2', JSON.stringify(intrantFamilies)); }
+                    if (data.intrantSubfamilies) { intrantSubfamilies = data.intrantSubfamilies; localStorage.setItem('crm_intrant_subfamilies_v2', JSON.stringify(intrantSubfamilies)); }
+                    hasChanged = true;
+                } else if (collections.includes(docId)) {
+                    if (Array.isArray(data.items)) {
+                        const localStr = JSON.stringify(db[docId] || []);
+                        const remoteStr = JSON.stringify(data.items);
+                        if (localStr !== remoteStr) {
+                            db[docId] = data.items;
+                            const keyMap = {
+                                CLIENT: 'crm_clients_v2',
+                                FOURNISSEUR: 'crm_suppliers_v2',
+                                ARTICLE: 'crm_articles_v2',
+                                INTRANT: 'crm_intrants_v2',
+                                PRODUCTION: 'crm_production_v2',
+                                VENTE: 'crm_ventes_v2',
+                                ACHAT: 'crm_achats_v2',
+                                USER: 'crm_users_v2'
+                            };
+                            if (keyMap[docId]) {
+                                localStorage.setItem(keyMap[docId], remoteStr);
+                            }
+                            hasChanged = true;
+                        }
+                    }
+                }
+            });
+            
+            updateCloudIndicator('synced');
+            if (hasChanged && !isFirstSnapshot) {
+                render();
+            }
+            isFirstSnapshot = false;
+        }, error => {
+            console.warn("Erreur écouteur Firestore:", error);
+            updateCloudIndicator('offline', 'Mode Local (Vérifier Firestore)');
+        });
+    } catch (e) {
+        console.warn("Impossible d'initialiser Firestore:", e);
+        updateCloudIndicator('offline');
+    }
+}
+
 // --- GLOBAL STATE ---
 let currentView = 'DASHBOARD';
 let currentPayingVente = null;
@@ -233,6 +402,7 @@ function saveData() {
     localStorage.setItem('crm_enclosures_v2', JSON.stringify(enclosures));
     localStorage.setItem('crm_intrant_families_v2', JSON.stringify(intrantFamilies));
     localStorage.setItem('crm_intrant_subfamilies_v2', JSON.stringify(intrantSubfamilies));
+    syncToCloud();
 }
 
 // --- TOAST NOTIFICATIONS ---
@@ -7560,6 +7730,7 @@ window.onload = () => {
     }
     loadTheme();
     switchView('DASHBOARD'); // Start on Dashboard
+    initCloudSync();
 };
 
 

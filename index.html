@@ -74,8 +74,12 @@
         <main class="main-wrapper">
             <!-- TOP BAR -->
             <header class="top-bar no-print">
-                <div class="top-bar-left">
+                <div class="top-bar-left" style="display:flex; align-items:center; gap:12px;">
                     <h2 class="view-title" id="current-view-title">Dashboard</h2>
+                    <span id="cloud-sync-badge" title="État de la synchronisation cloud" style="font-size:0.75rem; padding:4px 10px; border-radius:20px; display:inline-flex; align-items:center; gap:5px; font-weight:600; background:rgba(16,185,129,0.1); color:#10b981; border:1px solid rgba(16,185,129,0.25); cursor:default; user-select:none;">
+                        <i data-lucide="cloud" style="width:13px; height:13px;"></i>
+                        <span id="cloud-sync-text">Cloud Synchronisé</span>
+                    </span>
                 </div>
                 <div class="top-bar-right">
                     <div class="search-box-wrapper" id="search-name-wrapper" style="width: 180px;">
@@ -1125,7 +1129,11 @@
     <!-- TOAST NOTIFICATION CONTAINER -->
     <div id="toast" class="toast-notification"></div>
 
+    <!-- Firebase SDK (Compat) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
     <!-- Application Script -->
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=22"></script>
 </body>
 </html>
