@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ayden CRM - Business Management</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- html2pdf.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <!-- SheetJS (xlsx) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="style.css?v=21">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="Logo Ayden 1.png">
+</head>
+<body>
+
+    <div class="app-layout">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <img src="Logo Ayden 1.png" alt="Ayden Logo" class="crm-logo-img">
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <button class="nav-item" id="tab-DASHBOARD" onclick="switchView('DASHBOARD')">
+                    <i data-lucide="layout-dashboard"></i> <span>Dashboard</span>
+                </button>
+                <button class="nav-item" id="tab-CLIENT" onclick="switchView('CLIENT')">
+                    <i data-lucide="users"></i> <span>Clients</span>
+                </button>
+                <button class="nav-item" id="tab-FOURNISSEUR" onclick="switchView('FOURNISSEUR')">
+                    <i data-lucide="truck"></i> <span>Fournisseurs</span>
+                </button>
+                <button class="nav-item" id="tab-ACHAT" onclick="switchView('ACHAT')">
+                    <i data-lucide="shopping-bag"></i> <span>Achats</span>
+                </button>
+                <button class="nav-item" id="tab-ARTICLE" onclick="switchView('ARTICLE')">
+                    <i data-lucide="package"></i> <span>Articles (stock)</span>
+                </button>
+                <button class="nav-item" id="tab-INTRANT" onclick="switchView('INTRANT')">
+                    <i data-lucide="beaker"></i> <span>Intrant (stock)</span>
+                </button>
+                <button class="nav-item" id="tab-PRODUCTION" onclick="switchView('PRODUCTION')">
+                    <i data-lucide="factory"></i> <span>Production</span>
+                </button>
+                <button class="nav-item" id="tab-VENTE" onclick="switchView('VENTE')">
+                    <i data-lucide="shopping-cart"></i> <span>Ventes</span>
+                </button>
+                <button class="nav-item" id="tab-FINANCE" onclick="switchView('FINANCE')">
+                    <i data-lucide="wallet"></i> <span>Finance</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button class="theme-toggle-btn" onclick="toggleTheme()" id="theme-btn">
+                    <i data-lucide="moon"></i>
+                    <span>Mode Sombre</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT CONTAINER -->
+        <main class="main-wrapper">
+            <!-- TOP BAR -->
+            <header class="top-bar no-print">
+                <div class="top-bar-left">
+                    <h2 class="view-title" id="current-view-title">Dashboard</h2>
+                </div>
+                <div class="top-bar-right">
+                    <div class="search-box-wrapper" id="search-name-wrapper" style="width: 180px;">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="searchNameInput" placeholder="Rechercher par nom..." oninput="filterData()">
+                    </div>
+                    <div class="search-box-wrapper" id="search-code-wrapper" style="width: 180px;">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="searchCodeInput" placeholder="Rechercher par code..." oninput="filterData()">
+                    </div>
+                    <div class="filter-box-wrapper" id="filter-wrapper-container" style="display:none;">
+                        <select id="categoryFilter" onchange="filterData()"></select>
+                    </div>
+                    <div class="action-buttons" id="dynamic-buttons">
+                        <!-- Buttons injected dynamically -->
+                    </div>
+                </div>
+            </header>
+
+            <!-- MAIN VIEW CONTAINER -->
+            <div class="content-body">
+                <div id="mainGrid" class="grid-container">
+                    <!-- Cards or tables injected by JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- MODAL: CLIENTS & SUPPLIERS -->
+    <div class="modal-overlay" id="formModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3 id="modalTitle">Nouveau Tiers</h3>
+                <button class="close-btn" onclick="closeModal('formModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="mainForm" onsubmit="handleSubmit(event)">
+                <input type="hidden" id="editId">
+                <div class="modal-body-scroll">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label id="formNameLabel">Nom Complet / Raison Sociale *</label>
+                            <input type="text" id="formName" required placeholder="Ex: Coopérative Avicole d'Akoupé">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Contact Principal *</label>
+                            <input type="tel" id="formPhone1" required placeholder="Ex: 0759803724">
+                        </div>
+                        <div class="form-group">
+                            <label>Contact Secondaire</label>
+                            <input type="tel" id="formPhone2" placeholder="Ex: 0576233780">
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Adresse Géographique *</label>
+                            <input type="text" id="formAddress" required placeholder="Ex: Akoupé, Quartier Résidentiel">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Statut *</label>
+                            <select id="formStatus" onchange="toggleLimitField()">
+                                <option value="Occasionnel">Occasionnel</option>
+                                <option value="Abonné">Abonné</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Plafond Financier (FCFA)</label>
+                            <input type="number" id="formLimit" min="0" placeholder="Ex: 500000">
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Adresse Email</label>
+                            <input type="email" id="formEmail" placeholder="Ex: contact@coopavi.ci">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <div class="modal-actions-left">
+                        <button type="button" id="btnDeleteTiers" class="btn btn-danger" style="display:none;" onclick="handleTiersDeletion()">
+                            <i data-lucide="trash-2"></i> Supprimer
+                        </button>
+                    </div>
+                    <div class="modal-actions-right">
+                        <button type="button" class="btn btn-cancel" onclick="closeModal('formModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ARTICLES (PRODUCTS) -->
+    <div class="modal-overlay" id="articleModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3 id="articleModalTitle">Nouvel Article</h3>
+                <button class="close-btn" onclick="closeModal('articleModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="articleForm" onsubmit="handleArticleSubmit(event)">
+                <input type="hidden" id="editArticleId">
+                <div class="modal-body-scroll">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Désignation Article *</label>
+                            <input type="text" id="artName" required placeholder="Ex: Poulet de Chair (vif - Moyen)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Famille *</label>
+                            <select id="artFamily" required></select>
+                            <div class="quick-add-group">
+                                <input type="text" id="newFamily" placeholder="Famille">
+                                <button type="button" class="btn-icon" onclick="addListOption('artFamily', 'newFamily', 'families')">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Sous-Famille *</label>
+                            <select id="artSubFamily" required></select>
+                            <div class="quick-add-group">
+                                <input type="text" id="newSubFamily" placeholder="Sous-Famille">
+                                <button type="button" class="btn-icon" onclick="addListOption('artSubFamily', 'newSubFamily', 'subfamilies')">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Prix de Vente Unit. (FCFA) *</label>
+                            <input type="number" id="artPrice" required min="0" oninput="calculateArticleValues()" placeholder="Ex: 1500">
+                        </div>
+                        <div class="form-group">
+                            <label>Stock Initial *</label>
+                            <input type="number" id="artStock" required min="0" oninput="calculateArticleValues()" placeholder="Ex: 100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Prix de Revient Unit. Initial (FCFA) *</label>
+                            <input type="number" id="artInitialCostPrice" required min="0" oninput="calculateArticleValues()" placeholder="Ex: 1000">
+                        </div>
+                        <div class="form-group">
+                            <label>Prix de Revient Moyen (Calculé)</label>
+                            <input type="text" id="artCostPrice" readonly class="readonly-input">
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Valeur Stock (Calculée)</label>
+                            <input type="text" id="artStockVal" readonly class="readonly-input">
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Bénéfice Unitaire Prévisionnel (Calculé)</label>
+                            <div id="artBenefitBox" style="padding: 10px; border-radius: var(--radius-sm); border: 1.5px solid var(--border-color); font-weight: bold; text-align: center; font-size: 1.05rem; background-color: var(--bg-global);">
+                                <span id="artBenefitVal">0 FCFA</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Photo d'illustration</label>
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="artPhoto" accept="image/*" onchange="handleImageUpload(this)">
+                                <div class="file-upload-trigger">
+                                    <i data-lucide="upload-cloud"></i>
+                                    <span>Choisir une image...</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="artPhotoData">
+                            <div id="photoPreview" class="photo-preview-container">
+                                <img src="" id="previewImg" alt="Aperçu">
+                            </div>
+                        </div>
+                        
+                        <!-- Admin security code for modification -->
+                        <div id="artAdminCodeSection" class="form-group col-span-2 admin-security-box" style="display:none; margin-top:10px;">
+                            <label>Code de Sécurité *</label>
+                            <input type="password" id="artAdminCodeInput" placeholder="Saisir le code de sécurité">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <div class="modal-actions-left">
+                        <button type="button" id="btnDeleteArticle" class="btn btn-danger" style="display:none;" onclick="handleArticleDeletion()">
+                            <i data-lucide="trash-2"></i> Supprimer
+                        </button>
+                    </div>
+                    <div class="modal-actions-right">
+                        <button type="button" class="btn btn-cancel" onclick="closeModal('articleModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: INTRANT (RAW MATERIALS) -->
+    <div class="modal-overlay" id="intrantModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3 id="intrantModalTitle">Nouvel Intrant</h3>
+                <button class="close-btn" onclick="closeModal('intrantModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="intrantForm" onsubmit="handleIntrantSubmit(event)">
+                <input type="hidden" id="editIntrantId">
+                <div class="modal-body-scroll">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Désignation Intrant *</label>
+                            <input type="text" id="intName" required placeholder="Ex: Maïs concassé (Kg)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Famille *</label>
+                            <select id="intFamily" required></select>
+                            <div class="quick-add-group">
+                                <input type="text" id="newIntFamily" placeholder="Famille">
+                                <button type="button" class="btn-icon" onclick="addListOption('intFamily', 'newIntFamily', 'intrantFamilies')">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Sous-Famille *</label>
+                            <select id="intSubFamily" required></select>
+                            <div class="quick-add-group">
+                                <input type="text" id="newIntSubFamily" placeholder="Sous-Famille">
+                                <button type="button" class="btn-icon" onclick="addListOption('intSubFamily', 'newIntSubFamily', 'intrantSubfamilies')">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Prix d'Achat Unit. (FCFA) *</label>
+                            <input type="number" id="intPrice" required min="0" oninput="calculateIntrantValues()" placeholder="Ex: 5000">
+                        </div>
+                        <div class="form-group">
+                            <label>Stock Initial *</label>
+                            <input type="number" id="intStock" required min="0" oninput="calculateIntrantValues()" placeholder="Ex: 100">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Valeur Stock (Calculée)</label>
+                            <input type="text" id="intStockVal" readonly class="readonly-input">
+                        </div>
+                        <div class="form-group" id="intSupplierFormGroup">
+                            <label>Fournisseur Initial *</label>
+                            <select id="intSupplierSelect" required></select>
+                        </div>
+                        
+                        <!-- Supplier stocks distribution container (only visible in edit mode) -->
+                        <div class="form-group col-span-2" id="intSupplierStocksDistributionSection" style="display:none; border-top: 1px solid var(--border-color); padding-top: 15px; margin-top: 10px;">
+                            <h4 style="font-size:0.85rem; font-weight:700; color:var(--text-main); margin-bottom:10px;">Répartition du Stock par Fournisseur</h4>
+                            <div id="intSupplierStocksList" style="display:flex; flex-direction:column; gap:8px;">
+                                <!-- Dynamic rows of supplier name + stock input -->
+                            </div>
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <label>Photo d'illustration</label>
+                            <div class="file-upload-wrapper">
+                                <input type="file" id="intPhoto" accept="image/*" onchange="handleIntrantImageUpload(this)">
+                                <div class="file-upload-trigger">
+                                    <i data-lucide="upload-cloud"></i>
+                                    <span>Choisir une image...</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="intPhotoData">
+                            <div id="photoPreviewIntrant" class="photo-preview-container">
+                                <img src="" id="previewImgIntrant" alt="Aperçu">
+                            </div>
+                        </div>
+                        
+                        <!-- Admin security code for modification -->
+                        <div id="intAdminCodeSection" class="form-group col-span-2 admin-security-box" style="display:none; margin-top:10px;">
+                            <label>Code de Sécurité *</label>
+                            <input type="password" id="intAdminCodeInput" placeholder="Saisir le code de sécurité">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <div class="modal-actions-left">
+                        <button type="button" id="btnDeleteIntrant" class="btn btn-danger" style="display:none;" onclick="handleIntrantDeletion()">
+                            <i data-lucide="trash-2"></i> Supprimer
+                        </button>
+                    </div>
+                    <div class="modal-actions-right">
+                        <button type="button" class="btn btn-cancel" onclick="closeModal('intrantModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PRODUCTION ORDER -->
+    <div class="modal-overlay" id="productionModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3 id="productionModalTitle">Nouvelle Production</h3>
+                <button class="close-btn" onclick="closeModal('productionModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="productionForm" onsubmit="handleProductionSubmit(event)">
+                <div class="modal-body-scroll">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Code de Production (Auto)</label>
+                            <input type="text" id="prodId" readonly class="readonly-input">
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label>Sélectionner le Produit Fini *</label>
+                            <select id="prodArticleSelect" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Quantité à Produire *</label>
+                            <input type="number" id="prodQty" required min="1" placeholder="Ex: 50">
+                        </div>
+                        <div class="form-group">
+                            <label>Date de Production *</label>
+                            <input type="date" id="prodDate" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Responsable de Production *</label>
+                            <input type="text" id="prodManager" required placeholder="Ex: Dr. Ayden">
+                        </div>
+                        <div class="form-group">
+                            <label>Enclos de Production *</label>
+                            <select id="prodEnclosureSelect" required></select>
+                            <div class="quick-add-group">
+                                <input type="text" id="newEnclosureName" placeholder="Nouvel Enclos">
+                                <button type="button" class="btn-icon" onclick="addListOption('prodEnclosureSelect', 'newEnclosureName', 'enclosures')">
+                                    <i data-lucide="plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- PRODUCTION EXPENSES / INPUTS -->
+                    <div id="productionExpensesSection" style="display:none; margin-top:20px; border-top:1px solid var(--border-color); padding-top:15px;">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                            <h4 style="font-size:0.9rem; font-weight:700; color:var(--text-main);">Dépenses & Intrants consommés</h4>
+                            <button type="button" class="btn btn-secondary btn-small" style="display:flex; align-items:center; justify-content:center; gap:4px;" onclick="addProductionExpenseRow()">
+                                <i data-lucide="plus" style="width:12px; height:12px;"></i> Ajouter un intrant
+                            </button>
+                        </div>
+                        <div id="productionExpensesBody" style="display:flex; flex-direction:column; gap:12px; margin-top:10px;">
+                            <!-- Dynamic expense rows -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" id="btnDeleteProduction" class="btn btn-danger" style="display:none;" onclick="handleProductionDeletion()">
+                        <i data-lucide="trash-2"></i> Supprimer
+                    </button>
+                    <div style="display: flex; gap: 10px; margin-left: auto;">
+                        <button type="button" class="btn btn-dark" onclick="closeModal('productionModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                        <button type="submit" id="btnSubmitProduction" class="btn btn-primary">Créer la Production</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: SALE FORM (INVOICE / QUOTE) -->
+    <div class="modal-overlay" id="saleModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header no-print">
+                <h3 id="saleModalTitle">Édition de Document</h3>
+                <div class="modal-header-actions">
+                    <button class="close-btn" onclick="closeModal('saleModal')">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="modal-body-scroll">
+                <!-- FORM CONTROLS (HIDDEN DURING PRINT) -->
+                <div class="sale-form-controls no-print">
+                    <input type="hidden" id="editVenteId">
+                    <input type="hidden" id="saleDocType" value="FACTURE">
+                    
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Client *</label>
+                            <select id="saleClientSelect" required onchange="checkCreditAvailability()"></select>
+                            <div id="plafondRemainingInfo" class="plafond-badge"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Mode de Règlement *</label>
+                            <select id="salePaymentMode" onchange="checkCreditAvailability()">
+                                <option value="Cash">Cash</option>
+                                <option value="Mobile Money">Mobile Money</option>
+                                <option value="Crédit">Crédit</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date de livraison souhaitée *</label>
+                            <input type="date" id="saleDate" required>
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="tvaToggle" onchange="updateFacture()">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="switch-label">Appliquer la TVA (18%)</span>
+                            </div>
+                            
+                            <!-- Credit Limit Alert -->
+                            <div id="creditAlert" class="error-banner" style="display:none;">
+                                <i data-lucide="alert-triangle"></i>
+                                <span id="creditAlertText">PLAFOND FINANCIER DÉPASSÉ</span>
+                            </div>
+                        </div>
+
+                        <!-- Admin Code Section (required for editing factures) -->
+                        <div id="adminCodeSection" class="form-group col-span-2 admin-security-box" style="display:none;">
+                            <label><i data-lucide="lock" class="inline-icon"></i> Code de Sécurité requis pour enregistrer *</label>
+                            <input type="password" id="adminCodeInput" placeholder="Saisir le code de sécurité">
+                        </div>
+                    </div>
+
+                    <!-- Items selection table -->
+                    <div class="sale-items-builder">
+                        <div class="section-title-wrapper">
+                            <h4>Articles de la vente</h4>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="addSaleLineRow()">
+                                <i data-lucide="plus"></i> Ajouter une ligne
+                            </button>
+                        </div>
+                        <div class="builder-table-wrapper">
+                            <table class="builder-table">
+                                <thead>
+                                    <tr>
+                                        <th>Article</th>
+                                        <th style="width: 100px;">Qté</th>
+                                        <th style="width: 110px;" id="saleRemiseHeader">Remise %</th>
+                                        <th style="width: 140px;" id="salePriceHeader">P.U (HT)</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="saleLinesTableBody">
+                                    <!-- Dynamic rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PREVIEW DE FACTURE (VISIBLE FOR BOTH PRINT & VIEW) -->
+                <div class="facture-preview-card" id="facturePreview">
+                    <div class="facture-watermark" id="previewWatermark">BROUILLON</div>
+                    
+                    <div class="facture-preview-header">
+                        <div class="issuer-details">
+                            <img src="Logo Ayden 1.png" alt="Ayden Logo" class="facture-logo-img">
+                            <div>
+                                <h3 class="issuer-name">Ayden</h3>
+                                <p class="issuer-desc">Solutions Globales d'Élevage & Agro-Alimentaire</p>
+                                <p class="issuer-contact"><i data-lucide="phone" class="print-inline-icon"></i> +225 07 59 80 37 24 / +225 05 76 23 37 80</p>
+                                <p class="issuer-contact"><i data-lucide="mail" class="print-inline-icon"></i> ayden@corporate.com</p>
+                                <p class="issuer-contact"><i data-lucide="map-pin" class="print-inline-icon"></i> Akoupé, Quartier Résidentiel</p>
+                            </div>
+                        </div>
+                        <div class="invoice-client-box" id="factureClientDisplay">
+                            <!-- Populated dynamically -->
+                            <span class="placeholder">Sélectionner un client...</span>
+                        </div>
+                    </div>
+
+                    <div class="facture-preview-meta">
+                        <div>
+                            <span class="meta-title"><span id="factureTitlePrefix">FACTURE</span> N° :</span>
+                            <span class="meta-value" id="factureNumber">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Date d'édition :</span>
+                            <span class="meta-value" id="factureCreationDate">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Mode de Règlement :</span>
+                            <span class="meta-value" id="factureModeDisplay">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Date Livraison Prévue :</span>
+                            <span class="meta-value" id="factureDateDisplay">---</span>
+                        </div>
+                    </div>
+
+                    <table class="facture-preview-table">
+                        <thead id="factureThead">
+                            <tr>
+                                <th style="width: 60px;">Ordre</th>
+                                <th>Code</th>
+                                <th>Désignation</th>
+                                <th style="width: 80px; text-align: center;">Qté</th>
+                                <th style="width: 120px; text-align: right;">P.U (FCFA)</th>
+                                <th style="width: 80px; text-align: center;">Remise</th>
+                                <th style="width: 140px; text-align: right;">Total (FCFA)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="factureTableBody">
+                            <!-- Items inserted dynamically -->
+                        </tbody>
+                    </table>
+
+                    <div class="facture-preview-footer">
+                        <div class="invoice-notes">
+                            <p class="in-words-amount" id="factureInWords"></p>
+                            <div class="payment-policy-box">
+                                <p><strong>Conditions :</strong> Vous disposez d’une franchise de 30 jours pour régler cette aventure commerciale.</p>
+                                <p class="thank-you-msg">Merci pour votre confiance et à très bientôt !</p>
+                            </div>
+                        </div>
+                        <div class="invoice-totals-wrapper" id="factureTotalsDisplay">
+                            <!-- Totals calculated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions no-print">
+                <div class="modal-actions-left">
+                    <button type="button" id="btnDeleteSale" class="btn btn-danger" style="display:none;" onclick="handleSaleDeletion()">
+                        <i data-lucide="trash-2"></i> Supprimer
+                    </button>
+                </div>
+                <div class="modal-actions-right">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('saleModal')">Fermer</button>
+                    <button type="button" class="btn btn-secondary" id="btnSaveSendSale" onclick="saveAndSendVente()">
+                        <i data-lucide="mail"></i> Enregistrer et envoyer (Outlook)
+                    </button>
+                    <button type="button" class="btn btn-primary" id="btnSavePrint" onclick="saveAndPrint()">
+                        <i data-lucide="printer"></i> Enregistrer et Imprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PURCHASE FORM (ORDER / QUOTE) -->
+    <div class="modal-overlay" id="achatModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header no-print">
+                <h3 id="purchaseModalTitle">Édition de Bon de Commande</h3>
+                <div class="modal-header-actions">
+                    <button class="close-btn" onclick="closeModal('achatModal')">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="modal-body-scroll">
+                <!-- FORM CONTROLS -->
+                <div class="sale-form-controls no-print">
+                    <input type="hidden" id="editAchatId">
+                    <input type="hidden" id="purchaseDocType" value="BON_COMMANDE">
+                    
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Fournisseur *</label>
+                            <select id="purchaseSupplierSelect" required onchange="updatePurchase()"></select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Mode de Règlement *</label>
+                            <select id="purchasePaymentMode" onchange="updatePurchase()">
+                                <option value="Cash">Cash</option>
+                                <option value="Mobile Money">Mobile Money</option>
+                                <option value="Crédit">Crédit</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Date de livraison souhaitée *</label>
+                            <input type="date" id="purchaseDate" required>
+                        </div>
+                        
+                        <div class="form-group col-span-2">
+                            <div class="switch-container">
+                                <label class="switch">
+                                    <input type="checkbox" id="purchaseTvaToggle" onchange="updatePurchase()">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="switch-label">Appliquer la TVA (18%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Items selection table -->
+                    <div class="sale-items-builder">
+                        <div class="section-title-wrapper">
+                            <h4>Articles & Intrants de la commande</h4>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="addAchatLineRow()">
+                                <i data-lucide="plus"></i> Ajouter une ligne
+                            </button>
+                        </div>
+                        <div class="builder-table-wrapper">
+                            <table class="builder-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 120px;">Type</th>
+                                        <th>Produit / Désignation</th>
+                                        <th id="purchaseQtyHeader" style="width: 100px;">Qté</th>
+                                        <th id="purchasePriceHeader" style="width: 140px;">P.U d'Achat (F)</th>
+                                        <th style="width: 50px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="purchaseLinesTableBody">
+                                    <!-- Dynamic rows will be added here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PREVIEW -->
+                <div class="facture-preview-card" id="achatPreview">
+                    <div class="facture-watermark" id="purchasePreviewWatermark">BON COMMANDE</div>
+                    
+                    <div class="facture-preview-header">
+                        <div class="issuer-details">
+                            <img src="Logo Ayden 1.png" alt="Ayden Logo" class="facture-logo-img">
+                            <div>
+                                <h3 class="issuer-name">Ayden</h3>
+                                <p class="issuer-desc">Solutions Globales d'Élevage & Agro-Alimentaire</p>
+                                <p class="issuer-contact"><i data-lucide="phone" class="print-inline-icon"></i> +225 07 59 80 37 24 / +225 05 76 23 37 80</p>
+                                <p class="issuer-contact"><i data-lucide="mail" class="print-inline-icon"></i> ayden@corporate.com</p>
+                                <p class="issuer-contact"><i data-lucide="map-pin" class="print-inline-icon"></i> Akoupé, Quartier Résidentiel</p>
+                            </div>
+                        </div>
+                        <div class="invoice-client-box" id="achatSupplierDisplay">
+                            <!-- Populated dynamically -->
+                            <span class="placeholder">Sélectionner un fournisseur...</span>
+                        </div>
+                    </div>
+
+                    <div class="facture-preview-meta">
+                        <div>
+                            <span class="meta-title"><span id="purchaseTitlePrefix">COMMANDE</span> N° :</span>
+                            <span class="meta-value" id="purchaseNumber">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Date d'édition :</span>
+                            <span class="meta-value" id="purchaseCreationDate">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Mode de Règlement :</span>
+                            <span class="meta-value" id="purchaseModeDisplay">---</span>
+                        </div>
+                        <div>
+                            <span class="meta-title">Date Livraison Prévue :</span>
+                            <span class="meta-value" id="purchaseDateDisplay">---</span>
+                        </div>
+                    </div>
+
+                    <table class="facture-preview-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 60px;">Ordre</th>
+                                <th>Code</th>
+                                <th>Désignation (Type)</th>
+                                <th style="width: 80px; text-align: center;">Qté</th>
+                                <th style="width: 120px; text-align: right;">P.U (FCFA)</th>
+                                <th style="width: 140px; text-align: right;">Total (FCFA)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchaseTableBody">
+                            <!-- Items inserted dynamically -->
+                        </tbody>
+                    </table>
+
+                    <div class="facture-preview-footer">
+                        <div class="invoice-notes">
+                            <p class="in-words-amount" id="purchaseInWords"></p>
+                            <div class="payment-policy-box">
+                                <p><strong>Important :</strong> Ce document fait office de demande officielle de cotation ou commande ferme d'approvisionnement.</p>
+                                <p class="thank-you-msg">Merci pour votre précieuse collaboration !</p>
+                            </div>
+                        </div>
+                        <div class="invoice-totals-wrapper" id="purchaseTotalsDisplay">
+                            <!-- Totals calculated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-actions no-print">
+                <div class="modal-actions-left">
+                    <button type="button" id="btnDeleteAchat" class="btn btn-danger" style="display:none;" onclick="handleAchatDeletion()">
+                        <i data-lucide="trash-2"></i> Supprimer
+                    </button>
+                </div>
+                <div class="modal-actions-right">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('achatModal')">Fermer</button>
+                    <button type="button" class="btn btn-primary" id="btnSaveSendPurchase" onclick="saveAndSendAchat()">
+                        <i data-lucide="printer"></i> Enregistrer et Imprimer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: REGISTER PAYMENT -->
+    <div class="modal-overlay" id="payModal">
+        <div class="modal-card" style="max-width: 650px;">
+            <div class="modal-header">
+                <h3><i data-lucide="credit-card" style="width:18px; height:18px; vertical-align:middle; margin-right:6px; color:var(--primary-light);"></i> Nouveau Règlement</h3>
+                <button class="close-btn" onclick="closeModal('payModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body-scroll">
+                <div style="display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 1.5rem;">
+                    <!-- Left panel: Context Info -->
+                    <div style="background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; display: flex; flex-direction: column; gap: 1.25rem; justify-content: space-between;">
+                        <div>
+                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px;">Référence Règlement</div>
+                            <div style="font-size: 1.15rem; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                                <i data-lucide="hash" style="width:14px; height:14px; color:var(--primary-light);"></i>
+                                <span id="payNumDisplay">R-0000</span>
+                            </div>
+                        </div>
+                        
+                        <div style="border-top: 1px solid var(--border-color); padding-top: 1rem;">
+                            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 700; margin-bottom: 4px;">Reste à payer</div>
+                            <div style="font-size: 1.4rem; font-weight: 800; color: var(--danger);" id="payResteDisplay">0 F</div>
+                        </div>
+                        
+                        <div style="background-color: rgba(59, 130, 246, 0.05); border: 1px dashed rgba(59, 130, 246, 0.2); border-radius: var(--radius-sm); padding: 10px; font-size: 0.75rem; color: var(--text-muted); line-height: 1.4;">
+                            <i data-lucide="info" style="width:12px; height:12px; color:var(--primary-light); vertical-align:middle; margin-right:4px;"></i>
+                            Veuillez renseigner le montant du versement et la référence de la preuve de transaction (reçu, code mobile money, etc.) pour enregistrer ce règlement.
+                        </div>
+                        
+                        <!-- Hidden fields to keep compatibility with existing JS -->
+                        <input type="hidden" id="payNum">
+                        <input type="hidden" id="payReste">
+                    </div>
+                    
+                    <!-- Right panel: Form Inputs -->
+                    <div style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 700; font-size: 0.8rem; margin-bottom: 6px; display: block;">Mode de Règlement *</label>
+                            <select id="payMode" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-weight: 600;">
+                                <option value="Cash">Cash</option>
+                                <option value="Mobile Money">Mobile Money</option>
+                                <option value="Chèque">Chèque</option>
+                                <option value="Virement">Virement</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label style="font-weight: 700; font-size: 0.8rem; margin-bottom: 6px; display: block;">Montant du versement (FCFA) *</label>
+                            <input type="number" id="payAmount" min="1" required placeholder="Saisir le montant" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main); font-weight: 700; font-size: 1.05rem;">
+                            
+                            <!-- Shortcuts -->
+                            <div style="display: flex; gap: 8px; margin-top: 8px;">
+                                <button type="button" class="btn btn-secondary btn-small" id="btnPayHalf" style="font-size: 0.75rem; padding: 4px 8px; flex: 1;">50% du solde</button>
+                                <button type="button" class="btn btn-accent btn-small" id="btnPayFull" style="font-size: 0.75rem; padding: 4px 8px; flex: 1;">100% (Solde)</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label style="font-weight: 700; font-size: 0.8rem; margin-bottom: 6px; display: block;">Référence / Preuve de transaction *</label>
+                            <input type="text" id="payProof" required placeholder="Ex: REF-MM-847293" style="width: 100%; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-main);">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions" style="border-top: 1px solid var(--border-color); padding: 1rem 1.5rem; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-cancel" onclick="closeModal('payModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                <button type="button" class="btn btn-primary" onclick="executePayment()">Valider le Paiement</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: PROGRESSIVE DELIVERY -->
+    <div class="modal-overlay" id="deliveryModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Validation de Livraison</h3>
+                <button class="close-btn" onclick="closeModal('deliveryModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body-scroll">
+                <div class="form-grid">
+                    <input type="hidden" id="deliveryVenteId">
+                    <div class="form-group col-span-2">
+                        <label>Livreur *</label>
+                        <select id="deliveryDriverSelect" required></select>
+                        <div class="quick-add-group">
+                            <input type="text" id="newDriverName" placeholder="Nouveau Livreur">
+                            <button type="button" class="btn-icon" onclick="addListOption('deliveryDriverSelect', 'newDriverName', 'drivers')">
+                                <i data-lucide="plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group col-span-2">
+                        <label>Date de livraison de ce passage *</label>
+                        <input type="date" id="deliveryActualDate" required>
+                    </div>
+                    
+                    <div class="col-span-2 delivery-items-section">
+                        <h4 class="delivery-items-title">Quantités reçues lors de ce passage</h4>
+                        <div id="deliveryItemsList" class="delivery-items-list-container">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" onclick="closeModal('deliveryModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                <button type="button" class="btn btn-success" onclick="executeDelivery()">Confirmer le passage</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SALE DETAILS (INVOICE, PAYMENTS, DELIVERIES HISTORY) -->
+    <div class="modal-overlay" id="venteDetailsModal">
+        <div class="modal-card modal-lg">
+            <div class="modal-header">
+                <h3>Historique et Détails Opération</h3>
+                <button class="close-btn" onclick="closeModal('venteDetailsModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body-scroll" id="venteDetailsContent">
+                <!-- Injected dynamically by JS -->
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- MODAL: UTILISATEURS -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="userModalTitle">Nouvel Utilisateur</h3>
+                <button class="close-btn" onclick="closeModal('userModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <form id="userForm" onsubmit="handleUserSubmit(event)">
+                <input type="hidden" id="userEditId">
+                <div class="modal-body-scroll">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label>Nom Complet *</label>
+                            <input type="text" id="userName" required placeholder="Ex: Soro Moussa">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Adresse Email *</label>
+                            <input type="email" id="userEmail" required placeholder="Ex: soro@ayden.ci">
+                        </div>
+                        <div class="form-group">
+                            <label>Téléphone *</label>
+                            <input type="tel" id="userPhone" required placeholder="Ex: 0505050505">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Rôle *</label>
+                            <select id="userRole" required>
+                                <option value="Administrateur">Administrateur</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Livreur">Livreur</option>
+                                <option value="Opérateur">Opérateur</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Statut *</label>
+                            <select id="userStatus" required>
+                                <option value="Actif">Actif</option>
+                                <option value="Inactif">Inactif</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <div class="modal-actions-left">
+                        <button type="button" id="btnDeleteUser" class="btn btn-danger" style="display:none;" onclick="handleUserDeletion()">
+                            <i data-lucide="trash-2"></i> Supprimer
+                        </button>
+                    </div>
+                    <div class="modal-actions-right">
+                        <button type="button" class="btn btn-cancel" onclick="closeModal('userModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                        <button type="submit" class="btn btn-primary">Enregistrer</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: CONVERT QUOTE TO ORDER (PRICING) -->
+    <div class="modal-overlay" id="convertAchatModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Conversion Devis en Commande</h3>
+                <button class="close-btn" onclick="closeModal('convertAchatModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body-scroll">
+                <div class="form-grid">
+                    <input type="hidden" id="convertAchatId">
+                    <div class="form-group col-span-2">
+                        <label>Code de Sécurité *</label>
+                        <input type="password" id="convertAchatAdminCode" placeholder="Saisir le code de sécurité" required>
+                    </div>
+                    
+                    <div class="col-span-2">
+                        <h4 style="margin-bottom:10px; font-weight:800; font-size:0.9rem; color:var(--text-main);">Définir les Prix Unitaires Négociés *</h4>
+                        <div id="convertAchatItemsList" style="max-height: 250px; overflow-y: auto; padding-right:5px; display:flex; flex-direction:column; gap:8px;">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" onclick="closeModal('convertAchatModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                <button type="button" class="btn btn-success" onclick="executeConvertQuoteToAchat()">Valider et Envoyer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: TRANSFER PRODUCTION TO STOCK -->
+    <div class="modal-overlay" id="transferProductionModal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3>Transfert de Production vers le Stock</h3>
+                <button class="close-btn" onclick="closeModal('transferProductionModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body-scroll">
+                <div class="form-grid">
+                    <input type="hidden" id="transferProdId">
+                    <div class="form-group col-span-2">
+                        <label id="transferProdTitle" style="font-weight: 800; font-size: 0.95rem; color: var(--primary-light); margin-bottom: 10px; display: block;"></label>
+                    </div>
+                    
+                    <div class="form-group col-span-2">
+                        <label style="font-weight: 700;">Quantité à transférer *</label>
+                        <input type="number" id="transferQtyInput" min="1" placeholder="Saisir la quantité" oninput="updateTransferCalculations()" required style="width: 100%;">
+                        <span id="transferMaxLabel" style="font-size:0.75rem; color:var(--text-muted); display:block; margin-top:4px;"></span>
+                    </div>
+                    
+                    <div class="form-group col-span-2" style="margin-top: 5px;">
+                        <label style="font-weight: 700;">Code de Sécurité *</label>
+                        <input type="password" id="transferAdminCode" placeholder="Saisir le code de sécurité" required style="width: 100%;">
+                    </div>
+                    
+                    <!-- Calculations area -->
+                    <div class="col-span-2" id="transferCalculationsArea" style="margin-top: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); overflow: hidden; display: none;">
+                        <div style="background-color: var(--bg-global); padding: 12px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 6px;">
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color: var(--text-muted);">Coût Moyen Actuel du Stock :</span>
+                                <span id="calcCurrentCost" style="font-weight: bold; color: var(--text-main);">0 F</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color: var(--text-muted);">Stock Actuel :</span>
+                                <span id="calcCurrentStock" style="font-weight: bold; color: var(--text-main);">0</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; border-top: 1px dashed var(--border-color); padding-top: 6px; margin-top: 2px;">
+                                <span style="color: var(--text-muted);">Coût de Revient du Lot :</span>
+                                <span id="calcBatchCost" style="font-weight: bold; color: var(--primary-light);">0 F</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color: var(--text-muted);">Nouveau Coût Moyen après cumul :</span>
+                                <span id="calcNewCost" style="font-weight: bold; color: var(--text-main);">0 F</span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between;">
+                                <span style="color: var(--text-muted);">Prix de Vente Unitaire :</span>
+                                <span id="calcSellPrice" style="font-weight: bold; color: var(--success);">0 F</span>
+                            </div>
+                        </div>
+                        <!-- Profit unit wrapper -->
+                        <div id="calcProfitWrapper" style="padding: 12px; text-align: center; font-weight: bold; font-size: 0.95rem; border-top: 1px solid var(--border-color);">
+                            Profit de revient à l'unité : <span id="calcProfitVal">0 F</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions" style="padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-dark" onclick="closeModal('transferProductionModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                <button type="button" class="btn btn-success" onclick="executeProductionTransfer()">Valider le Transfert</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- MODAL: CONVERT SALES QUOTE TO FACTURE -->
+    <div class="modal-overlay" id="convertSaleModal">
+        <div class="modal-card" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Conversion Devis en Facture</h3>
+                <button class="close-btn" onclick="closeModal('convertSaleModal')">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body-scroll">
+                <div class="form-grid">
+                    <input type="hidden" id="convertSaleId">
+                    <div class="form-group col-span-2">
+                        <label style="font-weight: 700;">Code de Sécurité *</label>
+                        <input type="password" id="convertSaleAdminCode" placeholder="Saisir le code de sécurité" required style="width: 100%;">
+                    </div>
+                    
+                    <div class="col-span-2">
+                        <h4 style="margin-bottom:10px; font-weight:800; font-size:0.9rem; color:var(--text-main);">Définir les Prix de Vente Unitaire *</h4>
+                        <div id="convertSaleItemsList" style="max-height: 250px; overflow-y: auto; padding-right:5px; display:flex; flex-direction:column; gap:8px;">
+                            <!-- Populated dynamically by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-actions" style="padding: 15px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn btn-cancel" onclick="closeModal('convertSaleModal')"><i data-lucide="ban" style="width:14px; height:14px; margin-right:4px;"></i>Annuler</button>
+                <button type="button" class="btn btn-success" onclick="executeConvertSaleToFacture()">Valider la Facture</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast" class="toast-notification"></div>
+
+    <!-- Application Script -->
+    <script src="app.js?v=21"></script>
+</body>
+</html>
