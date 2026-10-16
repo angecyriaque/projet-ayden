@@ -132,15 +132,6 @@ function initCloudSync() {
                     hasChanged = true;
                 } else if (collections.includes(docId)) {
                     if (Array.isArray(data.items)) {
-                        // If cloud contains old demo items, overwrite cloud with clean zero data
-                        const hasDemoItems = data.items.some(item => 
-                            item && (item.id === 'CL-1001' || item.id === 'FR-1001' || item.id === 'ART-2001' || item.id === 'INT-3001' || item.id === 'PROD-2026-001')
-                        );
-                        if (hasDemoItems) {
-                            console.log(`Données de démo détectées dans la collection cloud ${docId}, réinitialisation propre...`);
-                            syncToCloud();
-                            return;
-                        }
 
                         const localStr = JSON.stringify(db[docId] || []);
                         const remoteStr = JSON.stringify(data.items);
@@ -213,23 +204,218 @@ let db = {
 let paymentChart = null;
 let stockChart = null;
 
-// --- INITIAL DATA RESET & SETUP ---
+// --- INITIAL DATA SEED & SETUP ---
 function initDemoData() {
-    const isResetDone = localStorage.getItem('ayden_clean_zero_v2') === 'done';
-    if (!isResetDone) {
-        db.CLIENT = [];
-        db.FOURNISSEUR = [];
-        db.ARTICLE = [];
-        db.INTRANT = [];
-        db.PRODUCTION = [];
-        db.VENTE = [];
-        db.ACHAT = [];
+    const isSeedDone = localStorage.getItem('ayden_single_data_v1') === 'done';
+    const isEmpty = (!db.CLIENT || db.CLIENT.length === 0) &&
+                    (!db.FOURNISSEUR || db.FOURNISSEUR.length === 0) &&
+                    (!db.ARTICLE || db.ARTICLE.length === 0) &&
+                    (!db.INTRANT || db.INTRANT.length === 0) &&
+                    (!db.PRODUCTION || db.PRODUCTION.length === 0) &&
+                    (!db.VENTE || db.VENTE.length === 0) &&
+                    (!db.ACHAT || db.ACHAT.length === 0);
+
+    if (!isSeedDone || isEmpty) {
+        db.CLIENT = [
+            {
+                id: "CL-1001",
+                name: "Société Ivoirienne de Distribution (SID)",
+                phone1: "0701020304",
+                phone2: "0501020304",
+                address: "Abidjan, Marcory Zone 4",
+                status: "Abonné",
+                limit: 2500000,
+                email: "contact@sid-ci.com",
+                date: "2026-10-16"
+            }
+        ];
+        db.FOURNISSEUR = [
+            {
+                id: "FR-1001",
+                name: "Agro-Nutrition Ivoire SARL",
+                phone1: "0758493021",
+                phone2: "0142334455",
+                address: "Bouaké, Zone Industrielle",
+                status: "Abonné",
+                limit: 5000000,
+                email: "commandes@agronutrition.ci",
+                date: "2026-10-16"
+            }
+        ];
+        db.INTRANT = [
+            {
+                id: "INT-3001",
+                name: "Aliment Démarrage Volaille (Sac 50kg)",
+                family: "Matières Premières (Aliment)",
+                subfamily: "Céréales & Tourteaux",
+                price: 18500,
+                stock: 100,
+                supplierStocks: { "FR-1001": 100 },
+                photo: "",
+                date: "2026-10-16"
+            }
+        ];
+        db.ARTICLE = [
+            {
+                id: "ART-2001",
+                name: "Poulet de Chair Élevé (Poids Vif ~2kg)",
+                family: "Aliments & Nutrition",
+                subfamily: "Produits Finis",
+                price: 3500,
+                stock: 250,
+                initialStock: 250,
+                initialCostPrice: 2200,
+                costPrice: 2200,
+                photo: "",
+                date: "2026-10-16"
+            }
+        ];
+        db.ACHAT = [
+            {
+                id: "ACH-1001",
+                num: "BC-1001",
+                docType: "BON_COMMANDE",
+                creationDate: "16/10/2026",
+                date: "2026-10-16",
+                supplierId: "FR-1001",
+                supplierName: "Agro-Nutrition Ivoire SARL",
+                brutHT: 925000,
+                remiseTotal: 0,
+                netHT: 925000,
+                tvaAmount: 0,
+                ttc: 925000,
+                reste: 425000,
+                mode: "Virement",
+                tvaEnabled: false,
+                items: [
+                    {
+                        id: "INT-3001",
+                        name: "Aliment Démarrage Volaille (Sac 50kg)",
+                        type: "INTRANT",
+                        qty: 50,
+                        price: 18500,
+                        rem: 0
+                    }
+                ],
+                payments: [
+                    {
+                        date: "2026-10-16",
+                        amount: 500000,
+                        mode: "Virement",
+                        ref: "VIR-AGRO-01"
+                    }
+                ],
+                deliveries: [
+                    {
+                        driver: "Ayden Delivery",
+                        date: "2026-10-16",
+                        items: [
+                            {
+                                id: "INT-3001",
+                                name: "Aliment Démarrage Volaille (Sac 50kg)",
+                                qty: 50
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
+        db.PRODUCTION = [
+            {
+                id: "PROD-2026-001",
+                date: "2026-10-16",
+                manager: "Dr. Ayden",
+                enclosure: "Bâtiment A",
+                status: "En cours",
+                items: [
+                    {
+                        id: "ART-2001",
+                        name: "Poulet de Chair Élevé (Poids Vif ~2kg)",
+                        qty: 500
+                    }
+                ],
+                initialQty: 500,
+                transferredQty: 0,
+                transfers: [],
+                expenses: [
+                    {
+                        intrantId: "INT-3001",
+                        intrantName: "Aliment Démarrage Volaille (Sac 50kg)",
+                        qty: 20,
+                        supplierId: "FR-1001",
+                        supplierName: "Agro-Nutrition Ivoire SARL",
+                        amount: 370000,
+                        reste: 0,
+                        payments: [
+                            {
+                                date: "2026-10-16",
+                                amount: 370000,
+                                mode: "Cash"
+                            }
+                        ],
+                        prodQtyAtExpense: 500,
+                        status: "Réglé"
+                    }
+                ]
+            }
+        ];
+        db.VENTE = [
+            {
+                id: "VTE-1001",
+                num: "F-1001",
+                docType: "FACTURE",
+                creationDate: "16/10/2026",
+                date: "2026-10-16",
+                clientId: "CL-1001",
+                clientName: "Société Ivoirienne de Distribution (SID)",
+                clientStatus: "Abonné",
+                brutHT: 175000,
+                remiseTotal: 0,
+                netHT: 175000,
+                tvaAmount: 0,
+                ttc: 175000,
+                reste: 0,
+                mode: "Mobile Money",
+                tvaEnabled: false,
+                items: [
+                    {
+                        id: "ART-2001",
+                        name: "Poulet de Chair Élevé (Poids Vif ~2kg)",
+                        qty: 50,
+                        price: 3500,
+                        rem: 0
+                    }
+                ],
+                payments: [
+                    {
+                        date: "2026-10-16",
+                        amount: 175000,
+                        mode: "Mobile Money",
+                        ref: "MM-SID-9912"
+                    }
+                ],
+                deliveries: [
+                    {
+                        driver: "Ayden Delivery",
+                        date: "2026-10-16",
+                        items: [
+                            {
+                                id: "ART-2001",
+                                name: "Poulet de Chair Élevé (Poids Vif ~2kg)",
+                                qty: 50
+                            }
+                        ]
+                    }
+                ]
+            }
+        ];
         db.USER = [
-            { id: "ICONIC", name: "Administrateur", email: "admin@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-10-15" }
+            { id: "ICONIC", name: "Administrateur", email: "admin@ayden.ci", phone: "0707070707", role: "Administrateur", status: "Actif", date: "2026-10-15" },
+            { id: "USR-1002", name: "Kouamé Jean", email: "j.kouame@ayden.ci", phone: "0755443322", role: "Commercial", status: "Actif", date: "2026-10-16" }
         ];
         drivers = ["Ayden Delivery"];
         enclosures = ["Bâtiment A", "Bâtiment B"];
-        localStorage.setItem('ayden_clean_zero_v2', 'done');
+        localStorage.setItem('ayden_single_data_v1', 'done');
         saveData();
         return;
     }
