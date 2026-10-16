@@ -7786,6 +7786,10 @@ function exportDashboardPDF() {
     const mainGrid = document.getElementById('mainGrid');
     if (!mainGrid) return;
     
+    if (typeof html2pdf === 'undefined') {
+        return showToast("Le module d'export PDF n'est pas encore prêt. Veuillez patienter...", true);
+    }
+    
     showToast("Génération du PDF du Tableau de Bord...");
     
     const periodEl = document.getElementById('dashboardPeriodSelect');
@@ -7793,65 +7797,105 @@ function exportDashboardPDF() {
     const periodText = periodEl ? periodEl.options[periodEl.selectedIndex].text : "Tout l'historique";
     const rubriqueText = rubriqueEl ? rubriqueEl.options[rubriqueEl.selectedIndex].text : "Finances & Trésorerie";
     
+    // Create clean PDF header
     const headerDiv = document.createElement('div');
     headerDiv.className = 'dashboard-pdf-header';
     headerDiv.style.cssText = `
         border-bottom: 2px solid #e5e7eb;
-        padding-bottom: 15px;
-        margin-bottom: 20px;
+        padding-bottom: 12px;
+        margin-bottom: 15px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Outfit', 'Segoe UI', sans-serif;
         color: #1f2937;
+        background: #ffffff;
     `;
     
     headerDiv.innerHTML = `
         <div>
-            <h1 style="margin: 0; font-size: 1.6rem; font-weight: 800; letter-spacing: 0.5px; color: #1e3a8a;">AYDEN - TABLEAU DE BORD</h1>
-            <p style="margin: 5px 0 0 0; font-size: 0.85rem; color: #4b5563;">Rubrique : <strong>${rubriqueText}</strong></p>
+            <h1 style="margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.5px; color: #1e3a8a;">AYDEN - TABLEAU DE BORD</h1>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #4b5563;">Rubrique : <strong>${rubriqueText}</strong></p>
         </div>
         <div style="text-align: right;">
             <p style="margin: 0; font-size: 0.85rem; color: #4b5563;">Période : <strong>${periodText}</strong></p>
-            <p style="margin: 5px 0 0 0; font-size: 0.75rem; color: #9ca3af;">Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</p>
+            <p style="margin: 4px 0 0 0; font-size: 0.75rem; color: #9ca3af;">Généré le : ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}</p>
         </div>
     `;
     
-    // Clone mainGrid and copy canvas contents
+    // Clone mainGrid
     const clone = mainGrid.cloneNode(true);
+    
+    // Remove the interactive filter toolbar inside clone to avoid duplicates
+    const filterToolbar = clone.querySelector('.dashboard-filter-bar');
+    if (filterToolbar) {
+        filterToolbar.remove();
+    }
+    
+    // Convert all Chart.js canvases to high-res images in the clone
     const originalCanvases = mainGrid.querySelectorAll('canvas');
     const clonedCanvases = clone.querySelectorAll('canvas');
     for (let i = 0; i < originalCanvases.length; i++) {
-        if (originalCanvases[i] && clonedCanvases[i]) {
-            const destCtx = clonedCanvases[i].getContext('2d');
-            if (destCtx) {
-                destCtx.drawImage(originalCanvases[i], 0, 0);
+        const orig = originalCanvases[i];
+        const clonedCanvas = clonedCanvases[i];
+        if (orig && clonedCanvas) {
+            try {
+                const img = document.createElement('img');
+                img.src = orig.toDataURL('image/png');
+                img.style.width = '100%';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.maxHeight = '280px';
+                img.style.objectFit = 'contain';
+                if (clonedCanvas.parentNode) {
+                    clonedCanvas.parentNode.replaceChild(img, clonedCanvas);
+                }
+            } catch (err) {
+                console.warn("Canvas to image conversion error:", err);
             }
         }
     }
     
-    // Prepend the clean header in the clone (offscreen)
-    clone.insertBefore(headerDiv, clone.firstChild);
+    // Create temporary offscreen container attached to DOM
+    const pdfContainer = document.createElement('div');
+    pdfContainer.style.position = 'absolute';
+    pdfContainer.style.left = '-9999px';
+    pdfContainer.style.top = '-9999px';
+    pdfContainer.style.width = '1120px';
+    pdfContainer.style.padding = '20px';
+    pdfContainer.style.background = '#ffffff';
+    pdfContainer.style.color = '#1f2937';
+    pdfContainer.style.fontFamily = "'Outfit', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+    
+    pdfContainer.appendChild(headerDiv);
+    pdfContainer.appendChild(clone);
+    document.body.appendChild(pdfContainer);
     
     const opt = {
-        margin:       10,
+        margin:       [10, 10, 10, 10],
         filename:     `Tableau_de_Bord_${rubriqueText.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { 
             scale: 2, 
             useCORS: true, 
             logging: false,
-            backgroundColor: '#f8fafc' 
+            backgroundColor: '#ffffff' 
         },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' },
         pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
     };
     
-    html2pdf().from(clone).set(opt).save().then(() => {
-        showToast("Tableau de Bord exporté avec succès !");
+    html2pdf().from(pdfContainer).set(opt).save().then(() => {
+        if (pdfContainer.parentNode) {
+            document.body.removeChild(pdfContainer);
+        }
+        showToast("Tableau de Bord téléchargé en PDF avec succès !");
     }).catch(err => {
+        if (pdfContainer.parentNode) {
+            document.body.removeChild(pdfContainer);
+        }
         showToast("Erreur lors de l'export PDF", true);
-        console.error(err);
+        console.error("Export dashboard PDF error:", err);
     });
 }
 
