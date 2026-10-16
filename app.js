@@ -599,6 +599,9 @@ function switchView(view) {
     // Update dynamic context action buttons
     if (view === 'DASHBOARD') {
         dynamicButtons.innerHTML = `
+            <button class="btn btn-primary" onclick="printDashboard()">
+                <i data-lucide="printer"></i> Imprimer
+            </button>
             <button class="btn btn-success" onclick="exportDashboardPDF()">
                 <i data-lucide="download"></i> Télécharger en PDF
             </button>
@@ -2155,8 +2158,11 @@ function renderVentes(container, data) {
                                 <td>
                                     <div class="actions-cell">
                                         <button class="btn btn-secondary btn-small" onclick="showVenteDetails('${v.id}')">Détails</button>
-                                        <button class="btn btn-success btn-small" onclick="downloadVentePDF('${v.id}')" title="Imprimer">
+                                        <button class="btn btn-success btn-small" onclick="printVente('${v.id}')" title="Imprimer">
                                             <i data-lucide="printer" style="width:12px;height:12px;"></i> Imprimer
+                                        </button>
+                                        <button class="btn btn-secondary btn-small" onclick="downloadVentePDF('${v.id}')" title="Télécharger en PDF">
+                                            <i data-lucide="download" style="width:12px;height:12px;"></i> PDF
                                         </button>
                                         
                                         ${isQuote ? `
@@ -4465,8 +4471,11 @@ function showProductionDetails(id) {
             <button class="btn btn-danger" onclick="deleteProduction('${p.id}')">
                 <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
             </button>
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('PRODUCTION', '${p.id}')">
+            <button class="btn btn-success" onclick="printElementDetails('PRODUCTION', '${p.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('PRODUCTION', '${p.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
@@ -4999,27 +5008,23 @@ function saveAndPrint() {
     // Auto-calculate remaining payments if editing
     const totalPaid = (saleData.payments || []).reduce((s, p) => s + p.amount, 0);
     saleData.reste = Math.max(0, ttc - totalPaid);
-    
+    let saleId = editId;
     if (editId) {
         const idx = db.VENTE.findIndex(v => v.id === editId);
         if (idx !== -1) db.VENTE[idx] = { ...db.VENTE[idx], ...saleData };
     } else {
-        db.VENTE.push({ id: 'VTE-' + Date.now(), ...saleData });
+        saleId = 'VTE-' + Date.now();
+        db.VENTE.push({ id: saleId, ...saleData });
     }
     
     saveData();
+    closeModal('saleModal');
+    switchView('VENTE');
+    showToast(editId ? "Document mis à jour !" : `${type} enregistré avec succès !`);
     
-    // Trigger window printing cleanly by changing document title to invoice number
-    const originalTitle = document.title;
-    document.title = factNum;
-    
-    // Timeout to ensure DOM finishes updates
     setTimeout(() => {
-        window.print();
-        document.title = originalTitle;
-        closeModal('saleModal');
-        switchView('VENTE');
-        showToast(editId ? "Document mis à jour !" : `${type} enregistré avec succès !`);
+        printVente(saleId);
+        downloadVentePDF(saleId);
     }, 250);
 }
 
@@ -5534,16 +5539,15 @@ function saveAndSendAchat() {
     }
     
     saveData();
-    
-    // Download XLSX
-    downloadAchatXLSX(achatId);
-    
-    // Download PDF for both quote and order
-    downloadAchatPDF(achatId);
-    
     closeModal('achatModal');
     switchView('ACHAT');
     showToast(editId ? "Achat mis à jour !" : "Achat enregistré avec succès !");
+    
+    setTimeout(() => {
+        downloadAchatXLSX(achatId);
+        printAchat(achatId);
+        downloadAchatPDF(achatId);
+    }, 250);
 }
 
 function editAchat(id) {
@@ -5878,8 +5882,11 @@ function showAchatDetails(id, fromFinance = false) {
                     <i data-lucide="dollar-sign" style="width:14px; height:14px; margin-right:4px;"></i> Enregistrer Règlement
                 </button>
             ` : ''}
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('ACHAT', '${a.id}')">
+            <button class="btn btn-success" onclick="printAchat('${a.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadAchatPDF('${a.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             ${(!fromFinance && isQuote) ? `
                 <button class="btn btn-warning" onclick="closeModal('venteDetailsModal'); editAchat('${a.id}')">
@@ -5899,55 +5906,58 @@ function showAchatDetails(id, fromFinance = false) {
     lucide.createIcons();
 }
 
+function printAchat(id) {
+    const a = db.ACHAT.find(x => x.id === id);
+    if (!a) return showToast("Document d'achat introuvable", true);
+    const html = getAchatHTMLForPDF(a);
+    printHTML(html, `${a.num} - ${a.supplierName}`);
+    showToast("Impression du bon de commande lancée...");
+}
+
 function downloadAchatPDF(id) {
     const a = db.ACHAT.find(x => x.id === id);
-    if (!a) return;
+    if (!a) return showToast("Document d'achat introuvable", true);
+    
+    showToast("Téléchargement du PDF en cours...");
+    const html = getAchatHTMLForPDF(a);
+    const filename = `${a.num}_${(a.supplierName || 'Fournisseur').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
     
     const tempDiv = document.createElement('div');
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px';
     tempDiv.style.top = '-9999px';
     tempDiv.style.width = '800px';
-    tempDiv.innerHTML = getAchatHTMLForPDF(a);
+    tempDiv.style.background = '#ffffff';
+    tempDiv.style.color = '#1f2937';
+    tempDiv.style.padding = '20px';
+    tempDiv.innerHTML = html;
     document.body.appendChild(tempDiv);
     
-    lucide.createIcons({
-        node: tempDiv
-    });
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons({ node: tempDiv });
+    }
     
     const opt = {
         margin:       10,
-        filename:     `${a.num}_${a.supplierName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        filename:     filename,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     
-    html2pdf().from(tempDiv).set(opt).toPdf().get('pdf').then(function (pdf) {
-        const blobUrl = pdf.output('bloburl');
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.width = '0px';
-        iframe.style.height = '0px';
-        iframe.style.border = 'none';
-        iframe.src = blobUrl;
-        
-        iframe.onload = function() {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-                document.body.removeChild(tempDiv);
-            }, 1000);
-        };
-        
-        document.body.appendChild(iframe);
-    }).catch(err => {
-        console.error(err);
-        if (tempDiv.parentNode) {
-            document.body.removeChild(tempDiv);
-        }
-    });
+    if (typeof html2pdf !== 'undefined') {
+        html2pdf().from(tempDiv).set(opt).save().then(() => {
+            if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+            showToast("Document d'achat téléchargé en PDF avec succès !");
+        }).catch(err => {
+            console.warn("html2pdf failed, fallback to print:", err);
+            if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+            printAchat(id);
+        });
+    } else {
+        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+        printAchat(id);
+    }
 }
 
 function getAchatHTMLForPDF(a) {
@@ -6245,10 +6255,29 @@ function downloadAchatXLSX(id) {
         rows.push(["Total TTC", "", "", "", "", a.ttc]);
     }
     
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, isQuote ? "Devis" : "Bon Commande");
-    XLSX.writeFile(workbook, filename);
+    if (typeof XLSX !== 'undefined') {
+        try {
+            const worksheet = XLSX.utils.aoa_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, isQuote ? "Devis" : "Bon Commande");
+            XLSX.writeFile(workbook, filename);
+            showToast(`Document Excel (${a.num}) téléchargé avec succès !`);
+            return;
+        } catch (e) {
+            console.warn("Erreur XLSX, fallback CSV:", e);
+        }
+    }
+    
+    const csvFilename = `${a.num}_${(a.supplierName || 'Fournisseur').replace(/[^a-zA-Z0-9]/g, '_')}.csv`;
+    const csvContent = "\uFEFF" + rows.map(r => r.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", csvFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Document (${csvFilename}) téléchargé avec succès !`);
 }
 
 
@@ -6333,8 +6362,11 @@ function renderAchats(container, data) {
                                     <div class="actions-cell">
                                         <button class="btn btn-secondary btn-small" onclick="${detailsAction}">Détails</button>
                                         ${!a.isProdExpense ? `
-                                             <button class="btn btn-secondary btn-small" onclick="downloadAchatPDF('${a.id}')" title="Imprimer" style="display:inline-flex; align-items:center; gap:4px;">
+                                             <button class="btn btn-success btn-small" onclick="printAchat('${a.id}')" title="Imprimer" style="display:inline-flex; align-items:center; gap:4px;">
                                                  <i data-lucide="printer" style="width:12px;height:12px;"></i> Imprimer
+                                             </button>
+                                             <button class="btn btn-secondary btn-small" onclick="downloadAchatPDF('${a.id}')" title="Télécharger en PDF" style="display:inline-flex; align-items:center; gap:4px;">
+                                                 <i data-lucide="download" style="width:12px;height:12px;"></i> PDF
                                              </button>
                                          ` : ''}
                                         
@@ -6848,8 +6880,11 @@ function showVenteDetails(id, fromFinance = false) {
                     <i data-lucide="dollar-sign" style="width:14px; height:14px; margin-right:4px;"></i> Enregistrer Règlement
                 </button>
             ` : ''}
-            <button class="btn btn-success" onclick="downloadVentePDF('${v.id}')">
+            <button class="btn btn-success" onclick="printVente('${v.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadVentePDF('${v.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-warning" onclick="closeModal('venteDetailsModal'); editSale('${v.id}')">
                 <i data-lucide="edit" style="width:14px; height:14px; margin-right:4px;"></i> Modifier
@@ -7032,11 +7067,30 @@ function exportXLSX(entity) {
         });
     }
     
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, entity);
-    XLSX.writeFile(workbook, filename);
-    showToast(`Téléchargement du fichier Excel (${entity}) démarré !`);
+    if (typeof XLSX !== 'undefined') {
+        try {
+            const worksheet = XLSX.utils.aoa_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, entity);
+            XLSX.writeFile(workbook, filename);
+            showToast(`Fichier Excel (${entity}) téléchargé avec succès !`);
+            return;
+        } catch (e) {
+            console.warn("Erreur XLSX, fallback CSV:", e);
+        }
+    }
+    
+    // Fallback: CSV export (sans aucune dépendance, compatible Excel)
+    const csvFilename = `ayden_${entity.toLowerCase()}_export.csv`;
+    const csvContent = "\uFEFF" + rows.map(r => r.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(";")).join("\r\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", csvFilename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast(`Fichier exporté (${csvFilename}) avec succès !`);
 }
 
 function exportXLSXAll() {
@@ -7483,6 +7537,12 @@ function showFinancePurchaseDetails(prodId, expenseIndex, fromFinance = false) {
                     <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
                 </button>
             ` : ''}
+            <button class="btn btn-success" onclick="printElementDetails('DEPENSE', '${p.id}-EXP${expenseIndex+1}')">
+                <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('DEPENSE', '${p.id}-EXP${expenseIndex+1}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
+            </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
     `;
@@ -7590,32 +7650,117 @@ function showInlineDeleteConfirm(modalId, warningMessage, onConfirm) {
     lucide.createIcons();
 }
 
-function downloadElementDetailsPDF(type, id) {
+// --- UNIVERSAL PRINTING & PDF EXPORT ENGINE ---
+function printHTML(htmlContent, title = 'Document AYDEN') {
+    let iframe = document.getElementById('ayden-print-iframe');
+    if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    
+    iframe = document.createElement('iframe');
+    iframe.id = 'ayden-print-iframe';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    iframe.style.visibility = 'hidden';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(`
+        <!DOCTYPE html>
+        <html lang="fr">
+        <head>
+            <meta charset="UTF-8">
+            <title>${title}</title>
+            <style>
+                @page { size: auto; margin: 12mm 15mm; }
+                body {
+                    margin: 0;
+                    padding: 0;
+                    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+                    color: #1e293b;
+                    background: #ffffff;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+                * { box-sizing: border-box; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #cbd5e1; padding: 8px; }
+                .no-print, button, .close-btn, .modal-actions { display: none !important; }
+            </style>
+        </head>
+        <body>
+            ${htmlContent}
+        </body>
+        </html>
+    `);
+    doc.close();
+    
+    setTimeout(() => {
+        try {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        } catch (e) {
+            console.warn("Direct iframe print blocked, falling back to popup print:", e);
+            const w = window.open('', '_blank');
+            if (w) {
+                w.document.write(doc.documentElement.outerHTML);
+                w.document.close();
+                w.focus();
+                w.print();
+            }
+        }
+        setTimeout(() => {
+            if (iframe && iframe.parentNode) iframe.parentNode.removeChild(iframe);
+        }, 3000);
+    }, 250);
+}
+
+function printDashboard() {
+    window.print();
+}
+
+function getElementDetailsCleanClone() {
     const originalContent = document.getElementById('venteDetailsContent');
-    if (!originalContent) return;
+    if (!originalContent) return null;
     
-    showToast("Génération du PDF en cours...");
-    
-    // Clone the details container
     const clone = originalContent.cloneNode(true);
-    
-    // Remove close button
     const closeBtn = clone.querySelector('.close-btn');
     if (closeBtn) closeBtn.remove();
-    
-    // Remove all buttons inside the clone
     const buttons = clone.querySelectorAll('button');
     buttons.forEach(btn => btn.remove());
-    
-    // Remove wrapping action divs
-    const actionDivs = clone.querySelectorAll('div[style*="justify-content:flex-end"]');
+    const actionDivs = clone.querySelectorAll('.modal-actions, div[style*="justify-content:flex-end"]');
     actionDivs.forEach(div => div.remove());
-    
-    // Also remove inline delete confirmation if active
     const inlineDelete = clone.querySelector('.inline-delete-confirm');
     if (inlineDelete) inlineDelete.remove();
+    return clone;
+}
+
+function printElementDetails(type, id) {
+    const clone = getElementDetailsCleanClone();
+    if (!clone) return showToast("Détails introuvables", true);
     
-    // Create container for PDF printing
+    const html = `
+        <div style="font-family:'Segoe UI', sans-serif; color:#1e293b; padding:20px;">
+            <div style="border-bottom:2px solid #1e3a8a; padding-bottom:10px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center;">
+                <h2 style="color:#1e3a8a; margin:0; font-size:1.3rem;">AYDEN - FICHE ${type}</h2>
+                <span style="font-size:0.85rem; color:#64748b;">Réf: <strong>${id}</strong></span>
+            </div>
+            ${clone.innerHTML}
+        </div>
+    `;
+    printHTML(html, `Fiche_${type}_${id}`);
+    showToast(`Impression de la fiche ${type}...`);
+}
+
+function downloadElementDetailsPDF(type, id) {
+    const clone = getElementDetailsCleanClone();
+    if (!clone) return showToast("Détails introuvables", true);
+    
+    showToast("Téléchargement du PDF en cours...");
+    
     const pdfContainer = document.createElement('div');
     pdfContainer.style.position = 'absolute';
     pdfContainer.style.left = '-9999px';
@@ -7626,30 +7771,37 @@ function downloadElementDetailsPDF(type, id) {
     pdfContainer.style.color = '#1f2937';
     pdfContainer.style.fontFamily = "'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
     
-    // Inject the cloned content
+    const header = document.createElement('div');
+    header.style.cssText = "border-bottom:2px solid #1e3a8a; padding-bottom:10px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;";
+    header.innerHTML = `
+        <h2 style="color:#1e3a8a; margin:0; font-size:1.3rem;">AYDEN - FICHE ${type}</h2>
+        <span style="font-size:0.85rem; color:#64748b;">Réf : <strong>${id}</strong></span>
+    `;
+    pdfContainer.appendChild(header);
     pdfContainer.appendChild(clone);
     document.body.appendChild(pdfContainer);
     
-    // Configure html2pdf options
     const opt = {
         margin:       10,
-        filename:     `details_${type.toLowerCase()}_${id}.pdf`,
+        filename:     `Fiche_${type.toLowerCase()}_${id}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
+        html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     
-    // Execute PDF download
-    html2pdf().from(pdfContainer).set(opt).save().then(() => {
-        document.body.removeChild(pdfContainer);
-        showToast("PDF téléchargé avec succès !");
-    }).catch(err => {
-        console.error("PDF generation error:", err);
-        if (pdfContainer.parentNode) {
-            document.body.removeChild(pdfContainer);
-        }
-        showToast("Erreur lors de la génération du PDF", true);
-    });
+    if (typeof html2pdf !== 'undefined') {
+        html2pdf().from(pdfContainer).set(opt).save().then(() => {
+            if (pdfContainer.parentNode) document.body.removeChild(pdfContainer);
+            showToast(`Fiche ${type} téléchargée en PDF avec succès !`);
+        }).catch(err => {
+            console.warn("PDF generation error, fallback to print:", err);
+            if (pdfContainer.parentNode) document.body.removeChild(pdfContainer);
+            printElementDetails(type, id);
+        });
+    } else {
+        if (pdfContainer.parentNode) document.body.removeChild(pdfContainer);
+        printElementDetails(type, id);
+    }
 }
 
 // --- FILTERING & SEARCH SEARCH ---
@@ -7917,55 +8069,58 @@ function executeConvertSaleToFacture() {
     showToast(`Devis converti en Facture ${v.num} ! PDF téléchargé.`);
 }
 
+function printVente(id) {
+    const v = db.VENTE.find(x => x.id === id);
+    if (!v) return showToast("Facture ou Devis introuvable", true);
+    const html = getVenteHTMLForPDF(v);
+    printHTML(html, `${v.num} - ${v.clientName}`);
+    showToast("Impression de la facture / devis lancée...");
+}
+
 function downloadVentePDF(id) {
     const v = db.VENTE.find(x => x.id === id);
-    if (!v) return;
+    if (!v) return showToast("Facture ou Devis introuvable", true);
+    
+    showToast("Téléchargement du PDF en cours...");
+    const html = getVenteHTMLForPDF(v);
+    const filename = `${v.num}_${(v.clientName || 'Client').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
     
     const tempDiv = document.createElement('div');
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px';
     tempDiv.style.top = '-9999px';
     tempDiv.style.width = '800px';
-    tempDiv.innerHTML = getVenteHTMLForPDF(v);
+    tempDiv.style.background = '#ffffff';
+    tempDiv.style.color = '#1f2937';
+    tempDiv.style.padding = '20px';
+    tempDiv.innerHTML = html;
     document.body.appendChild(tempDiv);
     
-    lucide.createIcons({
-        node: tempDiv
-    });
+    if (typeof lucide !== 'undefined' && lucide.createIcons) {
+        lucide.createIcons({ node: tempDiv });
+    }
     
     const opt = {
         margin:       10,
-        filename:     `${v.num}_${v.clientName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`,
+        filename:     filename,
         image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true, logging: false },
+        html2canvas:  { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
     
-    html2pdf().from(tempDiv).set(opt).toPdf().get('pdf').then(function (pdf) {
-        const blobUrl = pdf.output('bloburl');
-        const iframe = document.createElement('iframe');
-        iframe.style.position = 'absolute';
-        iframe.style.width = '0px';
-        iframe.style.height = '0px';
-        iframe.style.border = 'none';
-        iframe.src = blobUrl;
-        
-        iframe.onload = function() {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-                document.body.removeChild(tempDiv);
-            }, 1000);
-        };
-        
-        document.body.appendChild(iframe);
-    }).catch(err => {
-        console.error(err);
-        if (tempDiv.parentNode) {
-            document.body.removeChild(tempDiv);
-        }
-    });
+    if (typeof html2pdf !== 'undefined') {
+        html2pdf().from(tempDiv).set(opt).save().then(() => {
+            if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+            showToast("Facture / Devis téléchargé en PDF avec succès !");
+        }).catch(err => {
+            console.warn("html2pdf failed, falling back to print:", err);
+            if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+            printVente(id);
+        });
+    } else {
+        if (tempDiv.parentNode) document.body.removeChild(tempDiv);
+        printVente(id);
+    }
 }
 
 function exportDashboardPDF() {
@@ -7973,15 +8128,17 @@ function exportDashboardPDF() {
     if (!mainGrid) return;
     
     if (typeof html2pdf === 'undefined') {
-        return showToast("Le module d'export PDF n'est pas encore prêt. Veuillez patienter...", true);
+        showToast("Export PDF direct indisponible, bascule sur l'impression...");
+        printDashboard();
+        return;
     }
     
     showToast("Génération du PDF du Tableau de Bord...");
     
     const periodEl = document.getElementById('dashboardPeriodSelect');
     const rubriqueEl = document.getElementById('dashboardRubriqueSelect');
-    const periodText = periodEl ? periodEl.options[periodEl.selectedIndex].text : "Tout l'historique";
-    const rubriqueText = rubriqueEl ? rubriqueEl.options[rubriqueEl.selectedIndex].text : "Finances & Trésorerie";
+    const periodText = (periodEl && periodEl.options && periodEl.selectedIndex >= 0 && periodEl.options[periodEl.selectedIndex]) ? periodEl.options[periodEl.selectedIndex].text : "Tout l'historique";
+    const rubriqueText = (rubriqueEl && rubriqueEl.options && rubriqueEl.selectedIndex >= 0 && rubriqueEl.options[rubriqueEl.selectedIndex]) ? rubriqueEl.options[rubriqueEl.selectedIndex].text : "Finances & Trésorerie";
     
     // Create clean PDF header
     const headerDiv = document.createElement('div');
@@ -8080,8 +8237,9 @@ function exportDashboardPDF() {
         if (pdfContainer.parentNode) {
             document.body.removeChild(pdfContainer);
         }
-        showToast("Erreur lors de l'export PDF", true);
-        console.error("Export dashboard PDF error:", err);
+        console.warn("Export PDF direct échoué, bascule sur impression:", err);
+        showToast("Bascule sur l'impression du Tableau de Bord...");
+        printDashboard();
     });
 }
 
@@ -8326,8 +8484,11 @@ function showArticleDetails(id) {
             <button class="btn btn-danger" onclick="deleteArticleFromDetails('${art.id}')">
                 <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
             </button>
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('ARTICLE', '${art.id}')">
+            <button class="btn btn-success" onclick="printElementDetails('ARTICLE', '${art.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('ARTICLE', '${art.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
@@ -8446,8 +8607,11 @@ function showIntrantDetails(id) {
             <button class="btn btn-danger" onclick="deleteIntrantFromDetails('${intrant.id}')">
                 <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
             </button>
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('INTRANT', '${intrant.id}')">
+            <button class="btn btn-success" onclick="printElementDetails('INTRANT', '${intrant.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('INTRANT', '${intrant.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
@@ -8533,8 +8697,11 @@ function showClientDetails(id) {
             <button class="btn btn-danger" onclick="deleteTiersFromDetails('${client.id}', 'CLIENT')">
                 <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
             </button>
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('CLIENT', '${client.id}')">
+            <button class="btn btn-success" onclick="printElementDetails('CLIENT', '${client.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('CLIENT', '${client.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
@@ -8614,8 +8781,11 @@ function showSupplierDetails(id) {
             <button class="btn btn-danger" onclick="deleteTiersFromDetails('${supplier.id}', 'FOURNISSEUR')">
                 <i data-lucide="trash-2" style="width:14px; height:14px; margin-right:4px;"></i> Supprimer
             </button>
-            <button class="btn btn-success" onclick="downloadElementDetailsPDF('FOURNISSEUR', '${supplier.id}')">
+            <button class="btn btn-success" onclick="printElementDetails('FOURNISSEUR', '${supplier.id}')">
                 <i data-lucide="printer" style="width:14px; height:14px; margin-right:4px;"></i> Imprimer
+            </button>
+            <button class="btn btn-secondary" onclick="downloadElementDetailsPDF('FOURNISSEUR', '${supplier.id}')">
+                <i data-lucide="download" style="width:14px; height:14px; margin-right:4px;"></i> Télécharger PDF
             </button>
             <button class="btn btn-primary" onclick="closeModal('venteDetailsModal')">Fermer</button>
         </div>
